@@ -9,6 +9,7 @@ import javafx.beans.property.SimpleIntegerProperty
 import javafx.beans.property.SimpleObjectProperty
 import javafx.beans.property.SimpleStringProperty
 import javafx.collections.FXCollections
+import javafx.scene.control.TableView
 import tornadofx.*
 
 class User(id: Int = 0, name: String? = null) {
@@ -28,17 +29,25 @@ class HelloWorld : View() {
 
     private val model = UserModel(User())
 
+    private lateinit var table: TableView<User>
+
     override val root = hbox {
         vbox {
             tableview(data) {
+                table = this
                 column("id", User::id).minWidth(80)
                 column("name", User::name).minWidth(200)
                 model.rebindOnChange(this) { selectedUser ->
                     backingValue.value = selectedUser ?: User()
                 }
             }
-            button("New User").setOnAction {
-                model.rebind { backingValue.value = User() }
+            hbox {
+                button("New User").setOnAction {
+                    model.rebind { backingValue.value = User() }
+                }
+                button("Delete selected").setOnAction {
+                    data.remove(table.selectedItem)
+                }
             }
         }
         vbox {

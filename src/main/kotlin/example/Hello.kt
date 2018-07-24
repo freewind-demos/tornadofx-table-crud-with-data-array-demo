@@ -4,46 +4,50 @@ package example
 
 import javafx.beans.binding.Bindings
 import javafx.beans.binding.BooleanBinding
+import javafx.beans.binding.ObjectBinding
 import javafx.beans.binding.StringBinding
-import javafx.beans.property.SimpleIntegerProperty
+import javafx.beans.property.ReadOnlyObjectWrapper
+import javafx.beans.property.ReadOnlyProperty
 import javafx.beans.property.SimpleObjectProperty
-import javafx.beans.property.SimpleStringProperty
+import javafx.beans.value.ObservableValue
 import javafx.collections.FXCollections
 import javafx.scene.control.TableView
 import tornadofx.*
 
-class User(id: Int = 0, name: String? = null) {
-    val id = SimpleIntegerProperty(id)
-    val name = SimpleStringProperty(name)
+private val columnNames = listOf("Id", "Name")
+
+class RowModel(row: List<Any>) : ViewModel() {
+    val backingValue = SimpleObjectProperty(row)
 }
 
-class UserModel(user: User) : ViewModel() {
-    val backingValue = SimpleObjectProperty(user)
-    val id = bind { backingValue.value.id }
-    val name = bind { backingValue.value.name }
-}
-
-private val data = FXCollections.observableArrayList<User>(User(111, "AAA"), User(222, "BBB"), User(333, "CCC"), User(444, "DDD"))
+private val data = FXCollections.observableArrayList<List<Any>>(
+        mutableListOf(111, "AAA"),
+        mutableListOf(222, "BBB"),
+        mutableListOf(333, "CCC"),
+        mutableListOf(444, "DDD")
+)
 
 class HelloWorld : View() {
 
-    private val model = UserModel(User())
+    private val emptyRow = emptyList<Any>()
+    private val model = RowModel(emptyRow)
 
-    private lateinit var table: TableView<User>
+    private lateinit var table: TableView<List<Any>>
 
     override val root = hbox {
         vbox {
             tableview(data) {
                 table = this
-                column("id", User::id).minWidth(80)
-                column("name", User::name).minWidth(200)
-                model.rebindOnChange(this) { selectedUser ->
-                    backingValue.value = selectedUser ?: User()
+                columnNames.forEachIndexed { index, name ->
+                    column<List<Any>, String>(name) { it.value[index].toString().toProperty() }.minWidth(100)
+                }
+                model.rebindOnChange(this) { selectedRow ->
+                    backingValue.value = selectedRow ?: emptyRow
                 }
             }
             hbox {
-                button("New User").setOnAction {
-                    model.rebind { backingValue.value = User() }
+                button("New Row").setOnAction {
+                    model.rebind { backingValue.value = emptyRow }
                 }
                 button("Delete selected").setOnAction {
                     data.remove(table.selectedItem)
@@ -54,11 +58,10 @@ class HelloWorld : View() {
             form {
                 fieldset {
                     textProperty.bind(formName())
-                    field("Id") {
-                        textfield(model.id)
-                    }
-                    field("Name") {
-                        textfield(model.name)
+                    columnNames.forEachIndexed { index, name ->
+                        field(name) {
+                            textfield().bind(model.backingValue.map { it.getOrNull(index)?.toString() ?: "" })
+                        }
                     }
                     field(forceLabelIndent = true) {
                         button("Rest") {
@@ -66,10 +69,10 @@ class HelloWorld : View() {
                             action { model.rollback() }
                         }
                         button("Save") {
-                            enableWhen(model.dirty)
+                            // enableWhen(model.dirty)
                             action {
                                 model.commit()
-                                if (isNewUser().value) {
+                                if (isNewRow().value) {
                                     data.add(model.backingValue.value)
                                 }
                             }
@@ -80,11 +83,11 @@ class HelloWorld : View() {
         }
     }
 
-    private fun isNewUser(): BooleanBinding {
+    private fun isNewRow(): BooleanBinding {
         return Bindings.createBooleanBinding({ !data.contains(model.backingValue.value) }, arrayOf(model.backingValue))
     }
 
-    private fun formName(): StringBinding = Bindings.`when`(isNewUser()).then("New").otherwise("Modify")
+    private fun formName(): StringBinding = Bindings.`when`(isNewRow()).then("New").otherwise("Modify")
 }
 
 class HelloWorldStyle : Stylesheet() {
@@ -100,4 +103,15 @@ class HelloWorldApp : App(HelloWorld::class, HelloWorldStyle::class)
 
 fun main(args: Array<String>) {
     launch<HelloWorldApp>()
+}
+
+private fun <T, K> ReadOnlyProperty<T>.map(fn: (T) -> K): ReadOnlyProperty<K> {
+    val source = this
+    return ReadOnlyObjectWrapper<K>().apply {
+        source.addListener { _, _, newValue -> this.value = fn(newValue) }
+    }
+}
+
+private fun <T : Any, K> List<ObservableValue<T>>.bindingMap(fn: (List<T>) -> K): ObjectBinding<K> {
+    return Bindings.createObjectBinding({ fn(this.map { it.value }) }, this.toTypedArray())
 }

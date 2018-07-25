@@ -11,7 +11,7 @@ buildscript {
 apply plugin: 'kotlin'
 
 compileKotlin {
-    kotlinOptions.jvmTarget= "1.8"
+    kotlinOptions.jvmTarget = "1.8"
 }
 
 repositories {
@@ -29,6 +29,3 @@ dependencies {
     testCompile "org.jetbrains.kotlin:kotlin-test-junit:$kotlin_version"
 }
 
-task wrapper(type: Wrapper) {
-    gradleVersion = "4.6"
-}

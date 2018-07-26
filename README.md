@@ -12,3 +12,25 @@ Currently, there are several issues:
 Run `Hello.kt` file in your IDE.
 
 A question for this demo: <https://stackoverflow.com/questions/51503733/how-to-modify-rows-in-a-tableview-which-has-data-array-as-rows>
+
+Update
+------
+
+Fixed the code by creating a `RowBean` to wrap the array list as a JavaBean, also provided a property for each cell:
+
+```
+fun cellProperty(index: Int): SimpleStringProperty = SimpleStringProperty(this.rowProperty.value[index]).apply {
+    Bindings.bindBidirectional(this, rowProperty, object : StringConverter<ArrayList<String>>() {
+        override fun toString(obj: ArrayList<String>?): String {
+            return obj?.get(index) ?: ""
+        }
+        override fun fromString(string: String?): ArrayList<String> {
+            val newList = ArrayLists.copy(rowProperty.value)
+            newList[index] = string
+            return newList
+        }
+    })
+}
+```
+
+Then use it as a normal JavaBean with the `ViewModel` as usual.

@@ -2,103 +2,71 @@
 
 package example
 
+import com.github.freewind.lostlist.ArrayLists
 import javafx.beans.binding.Bindings
 import javafx.beans.binding.BooleanBinding
 import javafx.beans.binding.StringBinding
-import javafx.beans.property.SimpleBooleanProperty
 import javafx.beans.property.SimpleObjectProperty
 import javafx.beans.property.SimpleStringProperty
-import javafx.beans.property.StringProperty
 import javafx.collections.FXCollections
-import javafx.collections.ObservableList
 import javafx.scene.control.TableView
 import javafx.util.StringConverter
 import tornadofx.*
 
 private val columnNames = listOf("Id", "Name")
 
-private fun emptyRow(): ArrayList<String> {
-    return ArrayList<String>().apply {
-        repeat(data.first().size) { this.add("") }
-    }
-}
-
-class RowModel(private val data: ObservableList<ArrayList<String>>, var backRowIndex: Int?) {
-    private fun clone(list: ArrayList<String>) = ArrayList(list)
-    val row = SimpleObjectProperty(clone(currentRow() ?: emptyRow()))
-
-    private fun currentRow() = backRowIndex?.let { data.elementAt(it) }
-    val dirty = SimpleBooleanProperty(false)
-
-    fun valueProperty(index: Int): StringProperty {
-        return DataBean(row, index).value
-    }
-
-    init {
-        this.row.addListener { _, _, newRow ->
-            println("currentRow(): ${currentRow()}, new row: $newRow")
-            val changed = newRow != currentRow()
-            println("changed: $changed")
-            dirty.value = changed
-        }
-    }
-
-
-    fun rebindOnChange(tableView: TableView<ArrayList<String>>) {
-        tableView.selectionModel.selectedIndexProperty().addListener { _, _, index ->
-            this.backRowIndex = if (index == -1) null else index.toInt()
-            this.row.value = clone(currentRow() ?: emptyRow())
-        }
-    }
-
-    fun rebindEmpty() {
-        this.backRowIndex = null
-        this.row.value = emptyRow()
-    }
-
-    fun rollback() {
-        this.row.value = clone(currentRow() ?: emptyRow())
-    }
-
-    fun commit() {
-        this.backRowIndex?.let { index ->
-            this.data.set(index, clone(this.row.value))
-            this.row.value = clone(this.row.value)
-        } ?: run {
-            this.data.add(clone(this.row.value))
-            println("this.data.size: ${this.data.size}")
-            this.backRowIndex = this.data.size - 1
-            this.row.value = clone(this.data.elementAt(this.backRowIndex!!))
-        }
-    }
-
-}
-
-private val data = FXCollections.observableArrayList<ArrayList<String>>(
-        arrayListOf("111", "AAA"),
-        arrayListOf("222", "BBB"),
-        arrayListOf("333", "CCC"),
-        arrayListOf("444", "DDD")
+private val data = FXCollections.observableArrayList<RowBean>(
+        RowBean(arrayListOf("111", "AAA")),
+        RowBean(arrayListOf("222", "BBB")),
+        RowBean(arrayListOf("333", "CCC")),
+        RowBean(arrayListOf("444", "DDD"))
 )
+
+class RowBean(row: ArrayList<String> = ArrayLists.createFilled(columnNames.size, "")) {
+    val rowProperty = SimpleObjectProperty(row)
+    fun cellProperty(index: Int): SimpleStringProperty = SimpleStringProperty(this.rowProperty.value[index]).apply {
+        Bindings.bindBidirectional(this, rowProperty, object : StringConverter<ArrayList<String>>() {
+            override fun toString(obj: ArrayList<String>?): String {
+                return obj?.get(index) ?: ""
+            }
+
+            override fun fromString(string: String?): ArrayList<String> {
+                val newList = ArrayLists.copy(rowProperty.value)
+                newList[index] = string
+                return newList
+            }
+        })
+    }
+}
+
+class RowModel(row: RowBean) : ViewModel() {
+    val rowProperty = SimpleObjectProperty(row)
+    fun cellProperty(index: Int) = bind { rowProperty.value.cellProperty(index) }
+}
+
 
 class HelloWorld : View() {
 
-    private val model = RowModel(data, null)
+    private val model = RowModel(RowBean())
 
-    private lateinit var table: TableView<ArrayList<String>>
+    private lateinit var table: TableView<RowBean>
 
     override val root = hbox {
         vbox {
             tableview(data) {
                 table = this
                 columnNames.forEachIndexed { index, name ->
-                    column<ArrayList<String>, String>(name) { it.value[index].toProperty() }.minWidth(100)
+                    column<RowBean, String>(name) { it.value.cellProperty(index) }.minWidth(100)
                 }
-                model.rebindOnChange(this)
+                model.rebindOnChange(this) { selectedRow ->
+                    rowProperty.value = selectedRow
+                }
             }
             hbox {
                 button("New Row").setOnAction {
-                    model.rebindEmpty()
+                    model.rebind {
+                        model.rowProperty.value = RowBean()
+                    }
                 }
                 button("Delete selected").setOnAction {
                     data.remove(table.selectedItem)
@@ -111,7 +79,7 @@ class HelloWorld : View() {
                     textProperty.bind(formName())
                     columnNames.forEachIndexed { index, name ->
                         field(name) {
-                            textfield(model.valueProperty(index))
+                            textfield(model.cellProperty(index))
                         }
                     }
                     field(forceLabelIndent = true) {
@@ -123,7 +91,10 @@ class HelloWorld : View() {
                             enableWhen(model.dirty)
                             action {
                                 model.commit()
-                                table.selectionModel.select(model.backRowIndex!!)
+                                if (isNewRow().value) {
+                                    data.add(model.rowProperty.value)
+                                    table.selectionModel.selectLast()
+                                }
                             }
                         }
                     }
@@ -133,7 +104,7 @@ class HelloWorld : View() {
     }
 
     private fun isNewRow(): BooleanBinding {
-        return Bindings.createBooleanBinding({ model.backRowIndex == null }, arrayOf(model.row))
+        return Bindings.createBooleanBinding({ !data.contains(model.rowProperty.value) }, arrayOf(model.rowProperty))
     }
 
     private fun formName(): StringBinding = Bindings.`when`(isNewRow()).then("New").otherwise("Modify")
@@ -154,40 +125,3 @@ fun main(args: Array<String>) {
     launch<HelloWorldApp>()
 }
 
-//private fun <T, K> ReadOnlyProperty<T>.map(fn: (T) -> K): ReadOnlyProperty<K> {
-//    val source = this
-//    return ReadOnlyObjectWrapper<K>().apply {
-//        source.addListener { _, _, newValue -> this.value = fn(newValue) }
-//    }
-//}
-
-//private fun <T : String, K> List<ObservableValue<T>>.bindingMap(fn: (List<T>) -> K): ObjectBinding<K> {
-//    return Bindings.createObjectBinding({ fn(this.map { it.value }) }, this.toTypedArray())
-//}
-
-data class DataBean(val data: SimpleObjectProperty<ArrayList<String>>, val index: Int) {
-    val value: SimpleStringProperty = run {
-        val p = SimpleStringProperty(this.data.value[index])
-        Bindings.bindBidirectional(p, data, object : StringConverter<ArrayList<String>>() {
-            override fun toString(obj: ArrayList<String>?): String {
-                return obj?.get(index) ?: ""
-            }
-
-            override fun fromString(string: String?): ArrayList<String> {
-                val newList = ArrayList(data.value)
-                newList[index] = string
-                return newList
-            }
-        })
-        p
-    }
-//        get() = run {
-//            println("this.data.value: " + this.data.value[index])
-//            this.data.
-//        }
-//        set(value) {
-//            val list = ArrayList(this.data.value)
-//            list[index] = value
-//            this.data.value = list
-//        }
-}

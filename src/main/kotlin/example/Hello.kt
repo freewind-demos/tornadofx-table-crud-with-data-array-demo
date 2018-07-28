@@ -2,7 +2,7 @@
 
 package example
 
-import com.github.freewind.lostlist.ArrayLists
+import com.github.freewind.lostlist.Lists
 import javafx.beans.binding.Bindings
 import javafx.beans.binding.BooleanBinding
 import javafx.beans.binding.StringBinding
@@ -22,7 +22,7 @@ private val data = FXCollections.observableArrayList<RowBean>(
         RowBean(arrayListOf("444", "DDD"))
 )
 
-class RowBean(row: ArrayList<String> = ArrayLists.createFilled(columnNames.size, "")) {
+class RowBean(row: ArrayList<String> = Lists.arrayListFilled(columnNames.size, "")) {
     val rowProperty = SimpleObjectProperty(row)
     fun cellProperty(index: Int): SimpleStringProperty = SimpleStringProperty(this.rowProperty.value[index]).apply {
         Bindings.bindBidirectional(this, rowProperty, object : StringConverter<ArrayList<String>>() {
@@ -31,7 +31,7 @@ class RowBean(row: ArrayList<String> = ArrayLists.createFilled(columnNames.size,
             }
 
             override fun fromString(string: String?): ArrayList<String> {
-                val newList = ArrayLists.copy(rowProperty.value)
+                val newList = Lists.copy(rowProperty.value)
                 newList[index] = string
                 return newList
             }

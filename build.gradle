@@ -24,7 +24,7 @@ dependencies {
     compile "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
     compile "org.apache.commons:commons-lang3:3.7"
     compile "commons-io:commons-io:2.6"
-    compile 'freewind.github:lost-list-creator:0.3.0'
+    compile 'freewind.github:lost-list-creator:0.5.4'
     compile 'no.tornado:tornadofx:1.7.16'
     compile 'com.h2database:h2:1.4.197'
     testCompile "junit:junit:4.11"

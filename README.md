@@ -19,17 +19,21 @@ Update
 Fixed the code by creating a `RowBean` to wrap the array list as a JavaBean, also provided a property for each cell:
 
 ```
-fun cellProperty(index: Int): SimpleStringProperty = SimpleStringProperty(this.rowProperty.value[index]).apply {
-    Bindings.bindBidirectional(this, rowProperty, object : StringConverter<ArrayList<String>>() {
-        override fun toString(obj: ArrayList<String>?): String {
-            return obj?.get(index) ?: ""
-        }
-        override fun fromString(string: String?): ArrayList<String> {
-            val newList = ArrayLists.copy(rowProperty.value)
-            newList[index] = string
-            return newList
-        }
-    })
+class RowBean(row: ArrayList<String>) {
+    val rowProperty = SimpleObjectProperty(row)
+    fun cellProperty(index: Int): SimpleStringProperty = SimpleStringProperty(this.rowProperty.value[index]).apply {
+        Bindings.bindBidirectional(this, rowProperty, object : StringConverter<ArrayList<String>>() {
+            override fun toString(obj: ArrayList<String>?): String {
+                return obj?.get(index) ?: ""
+            }
+
+            override fun fromString(string: String?): ArrayList<String> {
+                val newList = Lists.copy(rowProperty.value)
+                newList[index] = string
+                return newList
+            }
+        })
+    }
 }
 ```
 
